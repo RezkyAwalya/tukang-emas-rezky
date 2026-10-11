@@ -32,13 +32,15 @@ if ($result->num_rows === 0) {
 $data = $result->fetch_assoc();
 
 
-$folder = "../uploads/koleksi/";
+$namaFile = basename($data["gambar"] ?? "");
 
-if (
-    !empty($data["gambar"]) &&
-    file_exists($folder . $data["gambar"])
-) {
-    unlink($folder . $data["gambar"]);
+// Hanya hapus file fisik jika file merupakan hasil upload koleksi (berawalan koleksi_)
+if (!empty($namaFile) && str_starts_with($namaFile, "koleksi_")) {
+    if (file_exists("../images/" . $namaFile)) {
+        unlink("../images/" . $namaFile);
+    } elseif (file_exists("../uploads/koleksi/" . $namaFile)) {
+        unlink("../uploads/koleksi/" . $namaFile);
+    }
 }
 
 

@@ -39,28 +39,46 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($result->num_rows === 1) {
 
-            $admin =
-                $result->fetch_assoc();
+            $admin = $result->fetch_assoc();
+            $dbPassword = (string)$admin["password"];
+            $passwordMatch = false;
 
-            if ($password === $admin["password"]) {
+            if (password_verify($password, $dbPassword)) {
+                $passwordMatch = true;
+                if (password_needs_rehash($dbPassword, PASSWORD_DEFAULT)) {
+                    $newHash = password_hash($password, PASSWORD_DEFAULT);
+                    $up = $conn->prepare("UPDATE admin SET password = ? WHERE id = ?");
+                    if ($up) {
+                        $up->bind_param("si", $newHash, $admin["id"]);
+                        $up->execute();
+                        $up->close();
+                    }
+                }
+            } elseif ($password === $dbPassword) {
+                // Kompatibilitas mundur: password lama plain-text otomatis diupgrade ke hash aman
+                $passwordMatch = true;
+                $newHash = password_hash($password, PASSWORD_DEFAULT);
+                $up = $conn->prepare("UPDATE admin SET password = ? WHERE id = ?");
+                if ($up) {
+                    $up->bind_param("si", $newHash, $admin["id"]);
+                    $up->execute();
+                    $up->close();
+                }
+            }
 
-                $_SESSION["admin"] =
-                    $admin["username"];
+            if ($passwordMatch) {
+                session_regenerate_id(true);
+                $_SESSION["admin"] = $admin["username"];
 
                 header("Location: index.php");
                 exit;
-
             } else {
-
-                $error =
-                    "Password salah.";
-
+                $error = "Password salah.";
             }
 
         } else {
 
-            $error =
-                "Username tidak ditemukan.";
+            $error = "Username tidak ditemukan.";
 
         }
 

@@ -71,34 +71,41 @@ $pesanan = $result->fetch_assoc();
 <body>
 
 <nav class="navbar navbar-expand-lg fixed-top">
-
     <div class="container">
-
         <a class="navbar-brand" href="../index.html">
             TUKANG EMAS
             <span class="brand-gold">REZKY</span>
         </a>
-
-        <div class="ms-auto">
-
-            <a
-                class="nav-link d-inline-block"
-                href="pesanan.php"
-            >
-                Pesanan
-            </a>
-
-            <a
-                class="nav-link d-inline-block"
-                href="logout.php"
-            >
-                Logout
-            </a>
-
+        <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#adminNavbar"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="adminNavbar">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="index.php">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="pesanan.php">Pesanan</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="koleksi.php">Koleksi</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="galeri.php">Galeri</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </li>
+            </ul>
         </div>
-
     </div>
-
 </nav>
 
 
@@ -270,8 +277,10 @@ $pesanan = $result->fetch_assoc();
         </div>
 
     </div>
-
 </section>
 
+<?php include "logout-modal.php"; ?>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -1,5 +1,4 @@
 <?php
-
 session_start();
 
 if (!isset($_SESSION["admin"])) {
@@ -9,56 +8,42 @@ if (!isset($_SESSION["admin"])) {
 
 require_once "../config/db.php";
 
-
 $id = (int)($_GET["id"] ?? 0);
-
-
 if ($id <= 0) {
-    die("ID tidak valid.");
+    header("Location: galeri.php");
+    exit;
 }
 
-
-$stmt = $conn->prepare(
-    "SELECT gambar FROM galeri WHERE id = ?"
-);
-
+$stmt = $conn->prepare("SELECT gambar FROM galeri WHERE id = ?");
 $stmt->bind_param("i", $id);
-
 $stmt->execute();
-
 $result = $stmt->get_result();
 
+if ($result->num_rows > 0) {
+    $data = $result->fetch_assoc();
+    $fileName = basename($data["gambar"] ?? "");
 
-if ($result->num_rows === 0) {
-    die("Data galeri tidak ditemukan.");
+    // Proteksi: Hanya hapus fisik file jika dibuat melalui sistem upload galeri (berawalan galeri_)
+    // Jangan hapus gambar jika merupakan aset produk bersama atau aset tetap
+    if (!empty($fileName) && str_starts_with($fileName, "galeri_")) {
+        $pathsToCheck = [
+            __DIR__ . "/../images/" . $fileName,
+            __DIR__ . "/../images/galeri/" . $fileName,
+            __DIR__ . "/../uploads/galeri/" . $fileName
+        ];
+        foreach ($pathsToCheck as $path) {
+            if (is_file($path)) {
+                unlink($path);
+                break;
+            }
+        }
+    }
+
+    $deleteStmt = $conn->prepare("DELETE FROM galeri WHERE id = ?");
+    $deleteStmt->bind_param("i", $id);
+    $deleteStmt->execute();
 }
-
-
-$data = $result->fetch_assoc();
-
-
-$folder = "../uploads/galeri/";
-
-
-if (
-    !empty($data["gambar"]) &&
-    file_exists($folder . $data["gambar"])
-) {
-    unlink($folder . $data["gambar"]);
-}
-
-
-$stmt = $conn->prepare(
-    "DELETE FROM galeri WHERE id = ?"
-);
-
-$stmt->bind_param("i", $id);
-
-$stmt->execute();
-
 
 header("Location: galeri.php");
-
 exit;
-
 ?>

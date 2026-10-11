@@ -290,12 +290,18 @@ a {
 .about-image {
     overflow: hidden;
     border-radius: 8px;
+    border: 1px solid #292929;
+    background: #000;
 }
 
-.about-image img {
+.about-image img,
+.about-image video,
+.about-video {
     width: 100%;
     height: 500px;
     object-fit: cover;
+    display: block;
+    border-radius: 8px;
 }
 
 .about-content {

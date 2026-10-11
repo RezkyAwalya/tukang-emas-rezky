@@ -1,5 +1,4 @@
 <?php
-
 session_start();
 
 if (!isset($_SESSION["admin"])) {
@@ -12,921 +11,200 @@ require_once "../config/db.php";
 $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (
+        !isset($_FILES["gambar"]) ||
+        $_FILES["gambar"]["error"] !== UPLOAD_ERR_OK
+    ) {
+        $error = "Silakan pilih foto yang valid.";
+    } else {
+        $file = $_FILES["gambar"];
 
-    $judul = trim($_POST["judul"] ?? "");
-    $deskripsi = trim($_POST["deskripsi"] ?? "");
+        $allowedTypes = [
+            "image/jpeg" => "jpg",
+            "image/png"  => "png",
+            "image/webp" => "webp"
+        ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | VALIDASI JUDUL
-    |--------------------------------------------------------------------------
-    */
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file["tmp_name"]);
 
-    if ($judul === "") {
-        $error = "Judul galeri wajib diisi.";
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | PROSES UPLOAD GAMBAR
-    |--------------------------------------------------------------------------
-    */
-
-    if ($error === "") {
-
-        if (
-            !isset($_FILES["gambar"]) ||
-            $_FILES["gambar"]["error"] !== UPLOAD_ERR_OK
-        ) {
-
-            $error = "Gambar wajib dipilih.";
-
+        if (!isset($allowedTypes[$mime])) {
+            $error = "Format foto harus JPG, PNG, atau WEBP.";
+        } elseif ($file["size"] > 5 * 1024 * 1024) {
+            $error = "Ukuran foto maksimal 5 MB.";
         } else {
+            // Menggunakan folder images yang sudah tersedia.
+            $folder = "../images/";
 
-            $file = $_FILES["gambar"];
+            if (!is_dir($folder)) {
+                $error = "Folder images tidak ditemukan.";
+            } else {
+                $namaFile = uniqid("galeri_", true)
+                    . "." . $allowedTypes[$mime];
 
-            /*
-            | Format gambar yang diperbolehkan
-            */
+                if (move_uploaded_file(
+                    $file["tmp_name"],
+                    $folder . $namaFile
+                )) {
+                    $judul = "";
+                    $deskripsi = "";
 
-            $allowedTypes = [
-                "image/jpeg" => "jpg",
-                "image/png"  => "png",
-                "image/webp" => "webp"
-            ];
-
-
-            /*
-            | Periksa MIME type sebenarnya
-            */
-
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-
-            $mime = $finfo->file(
-                $file["tmp_name"]
-            );
-
-
-            if (!isset($allowedTypes[$mime])) {
-
-                $error =
-                    "Format gambar harus JPG, PNG, atau WEBP.";
-
-            }
-
-
-            /*
-            | Maksimal ukuran 5 MB
-            */
-
-            elseif ($file["size"] > 5 * 1024 * 1024) {
-
-                $error =
-                    "Ukuran gambar maksimal 5 MB.";
-
-            }
-
-
-            else {
-
-                $extension =
-                    $allowedTypes[$mime];
-
-
-                /*
-                | Buat nama file unik
-                */
-
-                $namaFile =
-                    uniqid("galeri_", true)
-                    . "."
-                    . $extension;
-
-
-                /*
-                | Folder penyimpanan
-                */
-
-                $folder =
-                    "../uploads/galeri/";
-
-
-                /*
-                | Buat folder jika belum ada
-                */
-
-                if (!is_dir($folder)) {
-
-                    mkdir(
-                        $folder,
-                        0755,
-                        true
+                    $stmt = $conn->prepare(
+                        "INSERT INTO galeri (judul, deskripsi, gambar)
+                         VALUES (?, ?, ?)"
                     );
 
-                }
+                    $stmt->bind_param(
+                        "sss",
+                        $judul,
+                        $deskripsi,
+                        $namaFile
+                    );
 
-
-                $tujuan =
-                    $folder . $namaFile;
-
-
-                /*
-                | Pindahkan file
-                */
-
-                if (!move_uploaded_file(
-                    $file["tmp_name"],
-                    $tujuan
-                )) {
-
-                    $error =
-                        "Gambar gagal diupload.";
-
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | SIMPAN DATA KE DATABASE
-                |--------------------------------------------------------------------------
-                */
-
-                else {
-
-                    $sql = "
-                        INSERT INTO galeri
-                        (
-                            judul,
-                            deskripsi,
-                            gambar
-                        )
-                        VALUES (?, ?, ?)
-                    ";
-
-
-                    $stmt =
-                        $conn->prepare($sql);
-
-
-                    if (!$stmt) {
-
-                        $error =
-                            "Query database gagal.";
-
-
-                        /*
-                        | Hapus gambar jika database gagal
-                        */
-
-                        if (file_exists($tujuan)) {
-
-                            unlink($tujuan);
-
-                        }
-
+                    if ($stmt->execute()) {
+                        header("Location: galeri.php");
+                        exit;
                     }
 
-
-                    else {
-
-                        $stmt->bind_param(
-                            "sss",
-                            $judul,
-                            $deskripsi,
-                            $namaFile
-                        );
-
-
-                        if ($stmt->execute()) {
-
-                            /*
-                            | Berhasil → kembali ke daftar galeri
-                            */
-
-                            header(
-                                "Location: galeri.php"
-                            );
-
-                            exit;
-
-                        }
-
-
-                        else {
-
-                            $error =
-                                "Data galeri gagal disimpan.";
-
-
-                            /*
-                            | Hapus file jika penyimpanan gagal
-                            */
-
-                            if (file_exists($tujuan)) {
-
-                                unlink($tujuan);
-
-                            }
-
-                        }
-
-
-                        $stmt->close();
-
+                    // Hapus file baru jika penyimpanan DB gagal.
+                    if (is_file($folder . $namaFile)) {
+                        unlink($folder . $namaFile);
                     }
 
+                    $error = "Foto gagal disimpan ke database.";
+                } else {
+                    $error = "Foto gagal diunggah.";
                 }
-
             }
-
         }
-
     }
-
 }
-
 ?>
 
 <!DOCTYPE html>
-
 <html lang="id">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        Tambah Galeri - TUKANG EMAS REZKY
-    </title>
-
-
-    <!-- CSS utama website -->
-
-    <link
-        rel="stylesheet"
-        href="../style.css"
-    >
-
-
-    <!--
-    ============================================================
-    CSS KHUSUS HALAMAN TAMBAH GALERI
-    ============================================================
-    -->
-
-    <style>
-
-        /*
-        --------------------------------------------------------
-        AREA HALAMAN
-        --------------------------------------------------------
-        */
-
-        .admin-form-section {
-
-            min-height: 100vh;
-
-            padding: 80px 20px;
-
-            background: #0b0b0b;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        CONTAINER
-        --------------------------------------------------------
-        */
-
-        .admin-form-container {
-
-            max-width: 800px;
-
-            margin: 0 auto;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        JUDUL
-        --------------------------------------------------------
-        */
-
-        .admin-form-heading {
-
-            text-align: center;
-
-            margin-bottom: 40px;
-
-        }
-
-
-        .admin-form-heading h1 {
-
-            color: #d4af37;
-
-            font-size: 32px;
-
-            margin-bottom: 10px;
-
-        }
-
-
-        .admin-form-heading p {
-
-            color: #bdbdbd;
-
-            font-size: 15px;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        CARD FORM
-        --------------------------------------------------------
-        */
-
-        .admin-form-card {
-
-            background: #151515;
-
-            border: 1px solid #2d2d2d;
-
-            border-radius: 12px;
-
-            padding: 35px;
-
-            box-shadow:
-                0 10px 30px
-                rgba(0, 0, 0, 0.35);
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        FORM GROUP
-        --------------------------------------------------------
-        */
-
-        .admin-form-group {
-
-            margin-bottom: 24px;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        LABEL
-        --------------------------------------------------------
-        */
-
-        .admin-form-group label {
-
-            display: block;
-
-            margin-bottom: 9px;
-
-            color: #f5f5f5;
-
-            font-size: 15px;
-
-            font-weight: 600;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        INPUT DAN TEXTAREA
-        --------------------------------------------------------
-        */
-
-        .admin-form-group input[type="text"],
-        .admin-form-group textarea {
-
-            width: 100%;
-
-            box-sizing: border-box;
-
-            padding: 13px 15px;
-
-            background: #202020;
-
-            color: #f5f5f5;
-
-            border: 1px solid #3a3a3a;
-
-            border-radius: 6px;
-
-            font-family: inherit;
-
-            font-size: 14px;
-
-            outline: none;
-
-            transition: 0.3s;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        FOCUS
-        --------------------------------------------------------
-        */
-
-        .admin-form-group input[type="text"]:focus,
-        .admin-form-group textarea:focus {
-
-            border-color: #d4af37;
-
-            box-shadow:
-                0 0 0 2px
-                rgba(212, 175, 55, 0.12);
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        TEXTAREA
-        --------------------------------------------------------
-        */
-
-        .admin-form-group textarea {
-
-            min-height: 140px;
-
-            resize: vertical;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        FILE UPLOAD
-        --------------------------------------------------------
-        */
-
-        .admin-file-wrapper {
-
-            background: #202020;
-
-            border: 1px solid #3a3a3a;
-
-            border-radius: 6px;
-
-            padding: 8px;
-
-        }
-
-
-        .admin-file-wrapper input[type="file"] {
-
-            width: 100%;
-
-            color: #f5f5f5;
-
-            font-family: inherit;
-
-            font-size: 14px;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        INFO FILE
-        --------------------------------------------------------
-        */
-
-        .admin-file-info {
-
-            margin-top: 8px;
-
-            color: #999;
-
-            font-size: 12px;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        PESAN ERROR
-        --------------------------------------------------------
-        */
-
-        .admin-error {
-
-            background:
-                rgba(180, 40, 40, 0.15);
-
-            border:
-                1px solid #8f3030;
-
-            color: #ff8a8a;
-
-            padding: 13px 15px;
-
-            border-radius: 6px;
-
-            margin-bottom: 25px;
-
-            font-size: 14px;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        AREA TOMBOL
-        --------------------------------------------------------
-        */
-
-        .admin-form-actions {
-
-            display: flex;
-
-            justify-content: flex-end;
-
-            gap: 12px;
-
-            margin-top: 30px;
-
-            padding-top: 25px;
-
-            border-top: 1px solid #2d2d2d;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        TOMBOL BATAL
-        --------------------------------------------------------
-        */
-
-        .admin-btn-cancel {
-
-            display: inline-flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            min-width: 120px;
-
-            padding: 13px 22px;
-
-            color: #d4af37;
-
-            background: transparent;
-
-            border: 1px solid #d4af37;
-
-            border-radius: 5px;
-
-            text-decoration: none;
-
-            font-weight: 600;
-
-            transition: 0.3s;
-
-            box-sizing: border-box;
-
-        }
-
-
-        .admin-btn-cancel:hover {
-
-            background: #d4af37;
-
-            color: #111;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        TOMBOL SIMPAN
-        --------------------------------------------------------
-        */
-
-        .admin-btn-save {
-
-            min-width: 170px;
-
-            padding: 13px 22px;
-
-            background: #d4af37;
-
-            color: #111;
-
-            border: 1px solid #d4af37;
-
-            border-radius: 5px;
-
-            font-family: inherit;
-
-            font-size: 14px;
-
-            font-weight: 700;
-
-            cursor: pointer;
-
-            transition: 0.3s;
-
-        }
-
-
-        .admin-btn-save:hover {
-
-            background: #e4c354;
-
-            border-color: #e4c354;
-
-        }
-
-
-        /*
-        --------------------------------------------------------
-        RESPONSIVE
-        --------------------------------------------------------
-        */
-
-        @media (max-width: 600px) {
-
-            .admin-form-section {
-
-                padding: 50px 15px;
-
-            }
-
-
-            .admin-form-card {
-
-                padding: 25px 20px;
-
-            }
-
-
-            .admin-form-heading h1 {
-
-                font-size: 26px;
-
-            }
-
-
-            .admin-form-actions {
-
-                flex-direction: column;
-
-            }
-
-
-            .admin-btn-cancel,
-            .admin-btn-save {
-
-                width: 100%;
-
-            }
-
-        }
-
-    </style>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambah Galeri - TUKANG EMAS REZKY</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../style.css">
 </head>
-
-
 <body>
 
-
-<!--
-============================================================
-NAVBAR
-============================================================
--->
-
-<nav class="navbar">
-
+<nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
-
-        <a
-            href="index.php"
-            class="navbar-brand"
-        >
-            TUKANG EMAS REZKY
+        <a class="navbar-brand" href="../index.html">
+            TUKANG EMAS
+            <span class="brand-gold">REZKY</span>
         </a>
-
-
-        <div>
-
-            <a
-                href="index.php"
-                class="nav-link"
-            >
-                Dashboard
-            </a>
-
+        <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#adminNavbar"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="adminNavbar">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="index.php">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="pesanan.php">Pesanan</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="koleksi.php">Koleksi</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="galeri.php">Galeri</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </li>
+            </ul>
         </div>
-
     </div>
-
 </nav>
 
+<section class="section">
+    <div class="container">
 
-
-<!--
-============================================================
-FORM TAMBAH GALERI
-============================================================
--->
-
-<section class="admin-form-section">
-
-    <div class="admin-form-container">
-
-
-        <!-- Judul -->
-
-        <div class="admin-form-heading">
-
-            <h1>
-                Tambah Galeri
-            </h1>
-
-            <p>
-                Tambahkan foto baru ke galeri
-                TUKANG EMAS REZKY.
-            </p>
-
+        <div class="section-heading">
+            <h1>Tambah Galeri</h1>
+            <p>Pilih foto yang ingin ditampilkan di galeri.</p>
         </div>
 
-
-
-        <!-- Card -->
-
-        <div class="admin-form-card">
-
-
-            <!-- Pesan error -->
+        <div class="custom-form-card" style="max-width: 600px; margin: 0 auto;">
 
             <?php if ($error !== ""): ?>
-
-                <div class="admin-error">
-
-                    <?php
-
-                    echo htmlspecialchars($error);
-
-                    ?>
-
+                <div class="alert alert-danger" role="alert">
+                    <?= htmlspecialchars($error, ENT_QUOTES, "UTF-8"); ?>
                 </div>
-
             <?php endif; ?>
 
+            <form method="POST" enctype="multipart/form-data">
 
-
-            <!-- Form -->
-
-            <form
-                method="POST"
-                enctype="multipart/form-data"
-            >
-
-
-                <!-- Judul -->
-
-                <div class="admin-form-group">
-
-                    <label for="judul">
-                        Judul
-                    </label>
-
-
+                <div class="mb-3">
+                    <label for="gambar" class="form-label fw-bold">Pilih Foto Galeri</label>
                     <input
-                        type="text"
-                        id="judul"
-                        name="judul"
-                        placeholder="Contoh: Koleksi Cincin"
-                        value="<?php
-
-                        echo htmlspecialchars(
-                            $_POST["judul"] ?? ""
-                        );
-
-                        ?>"
+                        type="file"
+                        name="gambar"
+                        id="gambar"
+                        class="form-control"
+                        accept=".jpg,.jpeg,.png,.webp"
                         required
+                        onchange="previewImage(this)"
                     >
-
+                    <small class="text-secondary d-block mt-1">Format: JPG, JPEG, PNG, WEBP. Maksimal ukuran 5 MB.</small>
                 </div>
 
-
-
-                <!-- Deskripsi -->
-
-                <div class="admin-form-group">
-
-                    <label for="deskripsi">
-                        Deskripsi
-                    </label>
-
-
-                    <textarea
-                        id="deskripsi"
-                        name="deskripsi"
-                        placeholder="Deskripsi foto..."
-                    ><?php
-
-                    echo htmlspecialchars(
-                        $_POST["deskripsi"] ?? ""
-                    );
-
-                    ?></textarea>
-
+                <div id="imagePreviewContainer" class="mb-4 text-center d-none">
+                    <p class="small text-secondary mb-2">Pratinjau Foto:</p>
+                    <img id="imagePreview" src="#" alt="Pratinjau" style="max-height: 240px; border-radius: 8px; border: 1px solid var(--gold);">
                 </div>
 
-
-
-                <!-- Gambar -->
-
-                <div class="admin-form-group">
-
-                    <label for="gambar">
-                        Gambar
-                    </label>
-
-
-                    <div class="admin-file-wrapper">
-
-                        <input
-                            type="file"
-                            id="gambar"
-                            name="gambar"
-                            accept=".jpg,.jpeg,.png,.webp"
-                            required
-                        >
-
-                    </div>
-
-
-                    <div class="admin-file-info">
-
-                        Format:
-                        JPG, PNG, atau WEBP.
-                        Maksimal 5 MB.
-
-                    </div>
-
-                </div>
-
-
-
-                <!-- Tombol -->
-
-                <div class="admin-form-actions">
-
-
-                    <a
-                        href="galeri.php"
-                        class="admin-btn-cancel"
-                    >
+                <div class="form-buttons mt-4">
+                    <a href="galeri.php" class="btn-outline-gold">
                         Batal
                     </a>
 
-
-                    <button
-                        type="submit"
-                        class="admin-btn-save"
-                    >
-                        Simpan Galeri
+                    <button type="submit" class="btn-gold">
+                        Unggah Foto
                     </button>
-
-
                 </div>
 
-
             </form>
-
         </div>
 
     </div>
-
 </section>
 
+<?php include "logout-modal.php"; ?>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function previewImage(input) {
+    const container = document.getElementById('imagePreviewContainer');
+    const preview = document.getElementById('imagePreview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            container.classList.remove('d-none');
+        };
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        container.classList.add('d-none');
+    }
+}
+</script>
 </body>
-
 </html>

@@ -122,72 +122,15 @@
 
 </section>
 
-
 <!-- GALLERY -->
 <section class="section section-dark">
 
     <div class="container">
 
-        <div class="row g-4">
+        <div class="row g-4" id="galleryContainer">
 
-
-            <div class="col-md-6 col-lg-4">
-
-                <div class="gallery-item">
-
-                    <img src="images/index.jpeg"
-                        alt="Hasil perhiasan">
-
-                </div>
-
-            </div>
-
-
-            <div class="col-md-6 col-lg-4">
-
-                <div class="gallery-item">
-
-                    <img src="images/cincin kawin permata les tengah.jpeg"
-                        alt="Cincin emas">
-
-                </div>
-
-            </div>
-
-
-            <div class="col-md-6 col-lg-4">
-
-                <div class="gallery-item">
-
-                    <img src="images/anting bayi.jpeg"
-                        alt="Anting emas">
-
-                </div>
-
-            </div>
-
-
-            <div class="col-md-6 col-lg-4">
-
-                <div class="gallery-item">
-
-                    <img src="images/kalung.jpeg"
-                        alt="Kalung emas">
-
-                </div>
-
-            </div>
-
-
-            <div class="col-md-6 col-lg-4">
-
-                <div class="gallery-item">
-
-                    <img src="images/gelang geroncong.jpeg"
-                        alt="Gelang emas">
-
-                </div>
-
+            <div class="col-12 text-center">
+                <p>Memuat galeri...</p>
             </div>
 
         </div>
@@ -217,6 +160,93 @@
     </div>
 
 </footer>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const container = document.getElementById("galleryContainer");
+
+    async function tampilkanGaleri() {
+        try {
+            const response = await fetch("proses/get-galeri.php", {
+                cache: "no-store"
+            });
+
+            if (!response.ok) {
+                throw new Error("Gagal mengambil data galeri.");
+            }
+
+            const hasil = await response.json();
+
+            if (hasil.status !== "success") {
+                throw new Error("Data galeri tidak dapat dimuat.");
+            }
+
+            container.replaceChildren();
+
+            if (hasil.data.length === 0) {
+                const pesan = document.createElement("p");
+                pesan.className = "text-center";
+                pesan.textContent = "Belum ada foto galeri.";
+                container.appendChild(pesan);
+                return;
+            }
+
+            hasil.data.forEach(function (item) {
+                const kolom = document.createElement("div");
+                kolom.className = "col-md-6 col-lg-4";
+
+                const kartu = document.createElement("div");
+                kartu.className = "gallery-item";
+
+                const gambar = document.createElement("img");
+                gambar.src = item.gambar;
+                gambar.alt = item.judul;
+                gambar.loading = "lazy";
+
+                kartu.appendChild(gambar);
+                kolom.appendChild(kartu);
+
+                if (item.judul || item.deskripsi) {
+                    const keterangan = document.createElement("div");
+                    keterangan.className = "mt-3";
+
+                    if (item.judul) {
+                        const judul = document.createElement("h5");
+                        judul.textContent = item.judul;
+                        keterangan.appendChild(judul);
+                    }
+
+                    if (item.deskripsi) {
+                        const deskripsi = document.createElement("p");
+                        deskripsi.textContent = item.deskripsi;
+                        keterangan.appendChild(deskripsi);
+                    }
+
+                    kolom.appendChild(keterangan);
+                }
+
+                container.appendChild(kolom);
+            });
+
+        } catch (error) {
+            console.error("Galeri:", error);
+
+            container.replaceChildren();
+
+            const pesan = document.createElement("p");
+            pesan.className = "text-center";
+            pesan.textContent =
+                "Galeri belum dapat dimuat. Silakan coba lagi.";
+
+            container.appendChild(pesan);
+        }
+    }
+
+    tampilkanGaleri();
+
+});
+</script>
 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
